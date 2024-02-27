@@ -1,63 +1,49 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <unistd.h>
-#include <string.h>
+#include "data.h"
 
-#define SOCKET_PATH "./crc_socket"
-#define BUFFER_SIZE 1024
+#define SOCKET_PATH "./mysocket"
 
 int main() {
-    int client_socket;
-    struct sockaddr_un server;
-    char buffer[BUFFER_SIZE];
-    char dataWord[BUFFER_SIZE];
-    char divisor[BUFFER_SIZE];
 
-    client_socket = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (client_socket == -1) {
-        perror("socket");
-        exit(EXIT_FAILURE);
-    }
+	int cfd;
+	struct sockaddr_un saddr, caddr;
 
-    memset(&server, 0, sizeof(server));
-    server.sun_family = AF_UNIX;
-    strncpy(server.sun_path, SOCKET_PATH, sizeof(server.sun_path) - 1);
+	cfd = socket(AF_UNIX, SOCK_STREAM, 0);
+	perror("socket");
 
-    if (connect(client_socket, (struct sockaddr *)&server, sizeof(server)) == -1) {
-        perror("connect");
-        exit(EXIT_FAILURE);
-    }
+	caddr.sun_family = AF_UNIX;
+	strncpy(caddr.sun_path, SOCKET_PATH, sizeof(caddr.sun_path));
+	connect(cfd, (struct sockaddr*) &caddr, sizeof(caddr));
+	perror("connect");
 
-    printf("Connected to server\n");
+	while(1) {
 
-    printf("Enter data word: ");
-    fgets(dataWord, BUFFER_SIZE, stdin);
-    dataWord[strcspn(dataWord, "\n")] = '\0';
+		data_struct msg;
+		printf("Enter message bits: ");
+		scanf("%s", msg.bits);
+		printf("Enter polynomial coeff (divisor): ");
+		scanf("%s", msg.divisor);
 
-    printf("Enter divisor: ");
-    fgets(divisor, BUFFER_SIZE, stdin);
-    divisor[strcspn(divisor, "\n")] = '\0';
+		// strcpy(msg.bits, "1010101010");
+		// strcpy(msg.divisor, "11001");
 
-    strcat(buffer, dataWord);
-    strcat(buffer, ",");
-    strcat(buffer, divisor);
+		send(cfd, &msg, sizeof(msg), 0);
 
-    if (send(client_socket, buffer, strlen(buffer), 0) == -1) {
-        perror("send");
-        exit(EXIT_FAILURE);
-    }
+		char total_bits[1000], remainder[1000];;
 
-    if (recv(client_socket, buffer, BUFFER_SIZE, 0) == -1) {
-        perror("recv");
-        exit(EXIT_FAILURE);
-    }
+		recv(cfd, total_bits, sizeof(total_bits), 0);
 
-    printf("Received codeword from server: %s\n", buffer);
+		crcDivision(total_bits, msg.divisor, remainder);
 
-    close(client_socket);
+		puts(remainder);
 
-    return 0;
+		for(int i=0; i<strlen(remainder); i++) {
+			if(remainder[i] != '0' ) {
+				printf("\nERROR IN MESSAGE!!!\n");
+				exit(1);
+			}
+		}
+		printf("remainder is %s\nALL CORRECT\n", remainder);
+
+	}
+	
 }
-
